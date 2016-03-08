@@ -214,20 +214,30 @@ module DataShift
         #   2) mime_type:jpeg  
         #   3) mime_type:png, PDF|print_type:colour
 
+        # variants == ["color:Red,Blue", "strength:Normal,Rough"]
+
+#MAKING THE VARIANTS
         variants.each do |per_variant|
+          # per_variant => "color:Red,Blue"
 
           option_types = per_variant.split(Delimiters::multi_facet_delim)    # => [mime_type:jpeg, print_type:black_white]
+          #option_types => ["color:Red,Blue"]
 
           logger.info "Checking Option Types #{option_types.inspect}"
            
           optiontype_vlist_map = {}
 
           option_types.each do |ostr|
+            # ostr => "color:Red,Blue"
 
             oname, value_str = ostr.split(Delimiters::name_value_delim)
-
+              # oname => "color"
+              # value_str => "Red,Blue"
+#LOOKUP THE OPTION TYPE
             option_type = @@option_type_klass.where(:name => oname).first
+            # option_type => #<Spree::OptionType id: 27, name: "color", presentation: "Color", position: 1, created_at: "2016-03-07 22:48:15", updated_at: "2016-03-07 22:48:15">
 
+#CREATE THE OPTION TYPE IF DOESNT EXIST            
             unless option_type
               option_type = @@option_type_klass.create(:name => oname, :presentation => oname.humanize)
               # TODO - dynamic creation should be an option
@@ -238,69 +248,106 @@ module DataShift
               end
               logger.info "Created missing OptionType #{option_type.inspect}"
             end
-                      
+
+#PUT THE OPTION TYPE IN LOADER                       
             # OptionTypes must be specified first on Product to enable Variants to be created
             load_object.option_types << option_type unless load_object.option_types.include?(option_type)
+            # load_object.option_types => [#<Spree::OptionType id: 27, name: "color", presentation: "Color", position: 1, created_at: "2016-03-07 22:48:15", updated_at: "2016-03-07 22:48:15">]
 
+#NEXT IF OPTION VALUES ARE EMPTY
             # Can be simply list of OptionTypes, some or all without values
             next unless(value_str)
+            # value_str => "Red,Blue"
 
             optiontype_vlist_map[option_type] ||= []
+            # optiontype_vlist_map[option_type] => nil
 
+#MAKE HASH OF OPTION TYPE, AND VALUES
             # Now get the value(s) for the option e.g red,blue,green for OptType 'colour'
             optiontype_vlist_map[option_type] += value_str.split(',').flatten
+            # optiontype_vlist_map[option_type] => ["Red", "Blue"]
 
             logger.debug("Parsed OptionValues #{optiontype_vlist_map[option_type]} for Option_Type #{option_type.name}")
           end
 
+#ALSO, NEXT IF OPTION VALUES ARE EMPTY. REDUNDANT?
           next if(optiontype_vlist_map.empty?) # only option types specified - no values
+
 
           # Now create set of Variants, some of which maybe composites
           # Find the longest set of OptionValues to use as base for combining with the rest
           sorted_map = optiontype_vlist_map.sort_by { |ot, ov| ov.size }.reverse
+          # sorted_map => [[#<Spree::OptionType id: 27, name: "color", presentation: "Color", position: 1, created_at: "2016-03-07 22:55:15", updated_at: "2016-03-07 22:55:15">, ["Red", "Blue"]]]
 
           logger.debug("Processing Options into Variants #{sorted_map.inspect}")
 
           # {mime => ['pdf', 'jpeg', 'gif'], print_type => ['black_white']}
           
           lead_option_type, lead_ovalues = sorted_map.shift
-          
+          # lead_option_type => #<Spree::OptionType id: 27, name: "color", presentation: "Color", position: 1, created_at: "2016-03-07 22:55:15", updated_at: "2016-03-07 22:55:15">
+          # lead_ovalues => ["Red", "Blue"]
+
           # TODO .. benchmarking to find most efficient way to create these but ensure Product.variants list
           # populated .. currently need to call reload to ensure this (seems reqd for Spree 1/Rails 3, wasn't required b4
-          lead_ovalues.each do |ovname|
 
+#FOR EACH OPTION VALUE...
+          lead_ovalues.each_with_index do |ovname, index|
+          # lead_ovalues => ["Red", "Blue"]
+
+#MAKE ARRAY ONLY OR OPTION VALUES..
             ov_list = []
 
             ovname.strip!
+            # ovname => "Red"
 
+#PUT THE OPTION VALUE INTO LOADER
             #TODO - not sure why I create the OptionValues here, rather than above with the OptionTypes
             ov = @@option_value_klass.where(:name => ovname, :option_type_id => lead_option_type.id).first_or_create(:presentation => ovname.humanize)
+            # ov = => #<Spree::OptionValue id: 61, position: 1, name: "Red", presentation: "Red", option_type_id: 27, created_at: "2016-03-07 23:25:38", updated_at: "2016-03-07 23:25:38">
+
+#PUT OPTION VALUE OBJECT INTO OV_LIST ARRAY
             ov_list << ov if ov
- 
+            # ov_list => [#<Spree::OptionValue id: 71, position: 1, name: "Normal", presentation: "Normal", option_type_id: 32, created_at: "2016-03-08 00:18:05", updated_at: "2016-03-08 00:18:05">,
+            # #<Spree::OptionValue id: 69, position: 1, name: "Red", presentation: "Red", option_type_id: 31, created_at: "2016-03-08 00:18:05", updated_at: "2016-03-08 00:18:05">]
+
             # Process rest of array of types => values
+
             sorted_map.each do |ot, ovlist| 
+            # ot => #<Spree::OptionType id: 27, name: "color", presentation: "Color", position: 1, created_at: "2016-03-07 23:39:36", updated_at: "2016-03-07 23:39:37">
+            # ovlist => ["Red"]
+
               ovlist.each do |ov_for_composite|
+              # ov_for_composite => "Red"
 
                 ov_for_composite.strip!
 
+#CREATE/LOOKUP THE OPTION VALUE AGAIN??
                 # Prior Rails 4 - ov = @@option_value_klass.find_or_create_by_name_and_option_type_id(for_composite, ot.id, :presentation => for_composite.humanize)
                 ov = @@option_value_klass.where(:name => ov_for_composite, :option_type_id => ot.id).first_or_create(:presentation => ov_for_composite.humanize)
+                # ov => #<Spree::OptionValue id: 61, position: 1, name: "Red", presentation: "Red", option_type_id: 27, created_at: "2016-03-07 23:50:27", updated_at: "2016-03-07 23:50:27">
 
+#PUT OPTION VALUE INTO OPTION VALUE ARRAY
                 ov_list << ov if(ov)
+                # ov_list => [#<Spree::OptionValue id: 63, position: 1, name: "Normal", presentation: "Normal", option_type_id: 28, created_at: "2016-03-07 23:50:27", updated_at: "2016-03-07 23:50:27">, 
+                # >>> #<Spree::OptionValue id: 61, position: 1, name: "Red", presentation: "Red", option_type_id: 27, created_at: "2016-03-07 23:50:27", updated_at: "2016-03-07 23:50:27">]
               end
             end
 
-            unless(ov_list.empty?)
+            unless(ov_list.empty? || sorted_map.empty?)
               
               logger.info("Creating Variant from OptionValue(s) #{ov_list.collect(&:name).inspect}")
+              puts "Creating Variant from OptionValue(s) #{ov_list.collect(&:name).inspect}"
               
               i = @load_object.variants.size + 1
 
               variant = @load_object.variants.create( :sku => "#{load_object.sku}_#{i}", :price => load_object.price, :weight => load_object.weight, :height => load_object.height, :width => load_object.width, :depth => load_object.depth, :tax_category_id => load_object.tax_category_id)
 
-              variant.option_values << ov_list if(variant)    
+              variant.option_values << ov_list if(variant)  
+
             end
+#          end
           end
+
 
           @load_object.reload unless @load_object.new_record?
           #puts "DEBUG Load Object now has Variants : #{@load_object.variants.inspect}" if(verbose)
