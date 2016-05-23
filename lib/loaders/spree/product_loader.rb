@@ -161,6 +161,15 @@ module DataShift
           else
             super
           end
+
+        elsif(current_method_detail.operator?('gm_product_category') && current_value)
+
+          if(@load_object.gm_product_category.to_i)
+            @load_object.gm_product_category = current_value
+            @load_object.save
+          else
+            puts "WARNING: Is Google Merchant Product Category an integer? - None Set"
+          end
           
         #elsif(current_value && (current_method_detail.operator?('count_on_hand') || current_method_detail.operator?('on_hand')) )
         elsif(current_value && current_method_detail.operator?('stock_items'))
