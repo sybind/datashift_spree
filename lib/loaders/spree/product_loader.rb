@@ -43,7 +43,8 @@ module DataShift
         # In >= 1.1.0 Image moved to master Variant from Product so no association called Images on Product anymore
         
         # Non Product/database fields we can still process
-        @we_can_process_these_anyway =  ["images","variant_sku","variant_cost_price","variant_price","variant_images","stock_items"]
+        @we_can_process_these_anyway =  ["images","variant_sku","variant_cost_price","variant_price","variant_images","stock_items","au_price","uk_price"]
+        # @we_can_process_these_anyway =  ["images","variant_sku","variant_cost_price","variant_price","variant_images","stock_items"]
           
         # In >= 1.3.0 price moved to master Variant from Product so no association called Price on Product anymore
         # taking care of it here, means users can still simply just include a price column
@@ -162,8 +163,42 @@ module DataShift
             super
           end
 
-        elsif(current_method_detail.operator?('gm_product_category') && current_value)
+        elsif(current_method_detail.operator?('uk_price') && current_value)
 
+          p = Spree::Price.new(variant_id: @load_object.master.id,
+                           currency: "GBP",
+                           amount: current_value)
+          p.save
+
+        elsif(current_method_detail.operator?('au_price') && current_value)
+          
+          p = Spree::Price.new(variant_id: @load_object.master.id,
+                           currency: "AUD",
+                           amount: current_value)
+          p.save         
+
+        elsif(current_method_detail.operator?('variant_sku') && current_value)
+
+          if(@load_object.variants.size > 0)
+
+            if(current_value.to_s.include?(Delimiters::multi_assoc_delim))
+
+              # Check if we processed Option Types and assign  per option
+              values = current_value.to_s.split(Delimiters::multi_assoc_delim)
+
+              if(@load_object.variants.size == values.size)
+                @load_object.variants.each_with_index {|v, i| v.sku = values[i].to_s }
+                @load_object.save
+              else
+                puts "WARNING: SKU entries did not match number of Variants - None Set"
+              end
+            end
+
+          else
+            super
+          end
+
+        elsif(current_method_detail.operator?('gm_product_category') && current_value)        
           if(@load_object.gm_product_category.to_i)
             @load_object.gm_product_category = current_value
             @load_object.save
@@ -416,25 +451,32 @@ module DataShift
         chain_list = get_each_assoc  # potentially multiple chains in single column (delimited by Delimiters::multi_assoc_delim)
 
         chain_list.each do |chain|
+          # => "Health & Beauty > Personal Care > Cosmetics > Cosmetic Tools > Skin Care Tools > Foot Files "
+          
 
           # Each chain can contain either a single Taxon, or the tree like structure parent>child>child
           name_list = chain.split(/\s*>\s*/)
+          # => ["Health & Beauty", "Personal Care", "Cosmetics", "Cosmetic Tools", "Skin Care Tools", "Foot Files "]
 
           parent_name = name_list.shift
+          # => "Health & Beauty"
 
           parent_taxonomy = @@taxonomy_klass.where(:name => parent_name).first_or_create
+          # => #<Spree::Taxonomy id: 3, name: "Health & Beauty", created_at: "2016-03-18 21:03:37", updated_at: "2016-05-24 12:54:13", position: 3>
 
           raise DataShift::DataProcessingError.new("Could not find or create Taxonomy #{parent_name}") unless parent_taxonomy
 
           parent = parent_taxonomy.root
+          # => #<Spree::Taxon id: 12, parent_id: nil, position: 0, name: "Health & Beauty", permalink: "health-and-beauty", taxonomy_id: 3, lft: 23, rgt: 46, icon_file_name: nil, icon_content_type: nil, icon_file_size: nil, icon_updated_at: nil, description: nil, created_at: "2016-03-18 21:03:37", updated_at: "2016-05-24 12:54:13", meta_title: nil, meta_description: nil, meta_keywords: nil, depth: 0>
 
           # Add the Taxons to Taxonomy from tree structure parent>child>child
           taxons = name_list.collect do |name|
 
             begin
+             
               taxon = @@taxon_klass.where(:name => name, :parent_id => parent.id, :taxonomy_id => parent_taxonomy.id).first_or_create
 
-              # pre Rails 4 -  taxon = @@taxon_klass.find_or_create_by_name_and_parent_id_and_taxonomy_id(name, parent && parent.id, parent_taxonomy.id)
+              # pre Rails 4 -  taxon = @@taxon_klass.find_or_create_by_name_and_parent_id_and_taxonomy_id(name, parent && parent.id, parent_taxonomy.id) 
 
               unless(taxon)
                 logger.warn("Missing Taxon - could not find or create #{name} for parent #{parent_taxonomy.inspect}")
