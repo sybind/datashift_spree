@@ -165,17 +165,45 @@ module DataShift
 
         elsif(current_method_detail.operator?('uk_price') && current_value)
 
-          p = Spree::Price.new(variant_id: @load_object.master.id,
-                           currency: "GBP",
-                           amount: current_value)
-          p.save
+            if !current_value.nil? then
+              p = Spree::Price.new(variant_id: @load_object.master.id,
+                               currency: "GBP",
+                               amount: current_value)
+              p.save
+
+              if @load_object.variants.any? then
+                @load_object.variants.each {|v|
+                  vp = Spree::Price.new(variant_id: v.id,
+                                       currency: "GBP",
+                                       amount: current_value)
+                  vp.save
+                }
+              end
+
+            else
+              super
+            end
 
         elsif(current_method_detail.operator?('au_price') && current_value)
           
-          p = Spree::Price.new(variant_id: @load_object.master.id,
-                           currency: "AUD",
-                           amount: current_value)
-          p.save         
+          if !current_value.nil? then
+            p = Spree::Price.new(variant_id: @load_object.master.id,
+                             currency: "AUD",
+                             amount: current_value)
+            p.save
+
+            if @load_object.variants.any? then
+              @load_object.variants.each {|v|
+                vp = Spree::Price.new(variant_id: v.id,
+                                     currency: "AUD",
+                                     amount: current_value)
+                vp.save
+              }
+            end
+
+          else
+            super
+          end         
 
         elsif(current_method_detail.operator?('variant_sku') && current_value)
 
