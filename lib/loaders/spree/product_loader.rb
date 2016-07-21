@@ -43,8 +43,7 @@ module DataShift
         # In >= 1.1.0 Image moved to master Variant from Product so no association called Images on Product anymore
         
         # Non Product/database fields we can still process
-        @we_can_process_these_anyway =  ["images","variant_sku","variant_cost_price","variant_price","variant_images","stock_items","au_price","uk_price"]
-        # @we_can_process_these_anyway =  ["images","variant_sku","variant_cost_price","variant_price","variant_images","stock_items"]
+        @we_can_process_these_anyway =  ["images","variant_sku","variant_cost_price","variant_price","variant_images","stock_items","au_price","uk_price","active_sale_discount_rate"]
           
         # In >= 1.3.0 price moved to master Variant from Product so no association called Price on Product anymore
         # taking care of it here, means users can still simply just include a price column
@@ -203,7 +202,28 @@ module DataShift
 
           else
             super
-          end         
+          end
+
+        elsif(current_method_detail.operator?('active_sale_discount_rate') && current_value)          
+          if !current_value.nil? then 
+            current_value = current_value.to_i           
+            if current_value.is_a? Integer || i>0 || i<100 then
+              active_sale = Spree::ActiveSale.first
+              primary_active_sale_event = Spree::ActiveSaleEvent.first
+              raise ProductLoadError.new("active_sale_discount_rate is defined but no Spree::ActiveSale exist") unless active_sale
+              if active_sale then
+                @load_object.active_sale_events.create(:name => "#{@load_object.sku} #{current_value}%", 
+                  :active_sale_id => active_sale.id, :start_date => Time.now, :end_date => Time.now+10.year, 
+                  :permalink => "products/#{@load_object.friendly_id}", :parent_id => primary_active_sale_event.id, :discount => current_value)
+                @load_object.save
+              end
+            else
+              puts "WARNING: active_sale_discount_rate is not integer, or not within 0 and 100"
+            end
+          else
+            puts "WARNING: active_sale_discount_rate is nil, skipping."
+            super
+          end                    
 
         elsif(current_method_detail.operator?('variant_sku') && current_value)
 
