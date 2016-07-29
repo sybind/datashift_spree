@@ -204,14 +204,14 @@ module DataShift
             super
           end
 
-        elsif(current_method_detail.operator?('active_sale_discount_rate') && current_value)          
-          if !current_value.nil? then 
-            current_value = current_value.to_i           
+        elsif(current_method_detail.operator?('active_sale_discount_rate') && current_value)
+          if !current_value.nil? then
+            current_value = current_value.to_i
             if current_value.is_a? Integer || i>0 || i<100 then
               active_sale = Spree::ActiveSale.first
               primary_active_sale_event = Spree::ActiveSaleEvent.first
-              raise ProductLoadError.new("active_sale_discount_rate is defined but no Spree::ActiveSale exist") unless active_sale
-              if active_sale then
+              raise ProductLoadError.new("active_sale_discount_rate is defined but no Spree::ActiveSale exist") unless active_sale || primary_active_sale_event
+              if active_sale && primary_active_sale_event then                
                 @load_object.active_sale_events.create(:name => "#{@load_object.sku} #{current_value}%", 
                   :active_sale_id => active_sale.id, :start_date => Time.now, :end_date => Time.now+10.year, 
                   :permalink => "products/#{@load_object.friendly_id}", :parent_id => primary_active_sale_event.id, :discount => current_value)
@@ -223,7 +223,7 @@ module DataShift
           else
             puts "WARNING: active_sale_discount_rate is nil, skipping."
             super
-          end                    
+          end                  
 
         elsif(current_method_detail.operator?('variant_sku') && current_value)
 
