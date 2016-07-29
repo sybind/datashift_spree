@@ -225,6 +225,62 @@ module DataShift
             super
           end                  
 
+        elsif(current_method_detail.operator?('feedback_count') && current_value)
+          if !current_value.nil? then
+            current_value = current_value.to_i
+            if current_value.is_a? Integer || i>0 || i<100 then      
+
+              submitted_at_day_counter = 1.day
+
+              (1..current_value).each do |n|
+                submitted_at_day_counter = submitted_at_day_counter + rand(3-21).day
+                submitted_at = DateTime.now - submitted_at_day_counter
+
+                title = ""
+                name = ""
+                if name.empty? then
+                    name_length = 5+rand(5)
+                    name = (0...name_length).map { ('a'..'z').to_a[rand(26)] }.join
+                end
+                name_length = name.length
+                mask = "*" * (name_length-2)
+                name = name[0] + mask + name[name_length-1]
+                puts "name:" + name
+
+                location = "brazil"
+                rating = rand(4...6)
+                review = 'jus okay'
+                approved = true
+                user_id = 1
+                ip_address = '127.0.0.1'
+                locale = "en"
+                      
+                puts "making review for #{name}"
+                product = @load_object
+                user = Spree::User.find(1)
+                review = Spree::Review.new(:product => product)
+                review.product = product
+                review.user = user
+                review.ip_address = '127.0.0.1'
+                review.locale = I18n.locale.to_s
+                review.rating = rating
+                review.title = title
+
+                review.name = name
+                review.review = review
+                review.submitted_at = submitted_at
+                review.approved = true
+        
+                review.save!
+              end
+            else
+              puts "WARNING: feedback_ratings is not integer, or not within 0 and 100"
+            end
+          else
+            puts "WARNING: feedback_ratings is nil; not generating any reviews"
+            super
+          end   
+
         elsif(current_method_detail.operator?('variant_sku') && current_value)
 
           if(@load_object.variants.size > 0)
