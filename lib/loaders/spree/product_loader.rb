@@ -43,7 +43,7 @@ module DataShift
         # In >= 1.1.0 Image moved to master Variant from Product so no association called Images on Product anymore
         
         # Non Product/database fields we can still process
-        @we_can_process_these_anyway =  ["images","variant_sku","variant_cost_price","variant_price","variant_images","stock_items","au_price","uk_price","active_sale_discount_rate"]
+        @we_can_process_these_anyway =  ["images","variant_sku","variant_cost_price","variant_price","variant_images","stock_items","au_price","uk_price","active_sale_discount_rate","feedback_count"]
           
         # In >= 1.3.0 price moved to master Variant from Product so no association called Price on Product anymore
         # taking care of it here, means users can still simply just include a price column
